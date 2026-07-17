@@ -147,18 +147,6 @@ The paper evaluates on four SMAC maps:
 
 Non-SMAC control tasks include Predator-Prey, CartPole, MountainCar, LunarLander, FlappyBird, and Taxi Problem.
 
-## Citation
-
-If you use this code in your research, please cite:
-
-```bibtex
-@article{fipe,
-  title={Extracting Fidelity Rules From Trained Deep Reinforcement Learning in the StarCraft Multi-Agent Challenge},
-  author={...},
-  journal={...},
-  year={...}
-}
-```
 
 ### Related Work
 - [DAGGER: Dataset Aggregation](https://www.cs.cmu.edu/~sross1/publications/Ross-AISTATS11.pdf) — Ross et al., AISTATS 2011
