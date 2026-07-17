@@ -1,76 +1,170 @@
-# StarCraft
+# Fidelity-Induced Policy Extraction (FIPE)
 
-Pytorch implementations of the multi-agent reinforcement learning algorithms, including 
-[IQL](https://arxiv.org/abs/1511.08779),
-[QMIX](https://arxiv.org/abs/1803.11485), [VDN](https://arxiv.org/abs/1706.05296), 
-[COMA](https://arxiv.org/abs/1705.08926), [QTRAN](https://arxiv.org/abs/1905.05408)(both **QTRAN-base** and **QTRAN-alt**),
-[MAVEN](https://arxiv.org/abs/1910.07483), [CommNet](https://arxiv.org/abs/1605.07736), 
-[DyMA-CL](https://arxiv.org/abs/1909.02790?context=cs.MA), and [G2ANet](https://arxiv.org/abs/1911.10715), 
-which are the state of the art MARL algorithms. In addition, because CommNet and G2ANet need an external training algorithm, 
-we provide **Central-V** and **REINFORCE** for them to training, you can also combine them with COMA.
-We trained these algorithms on [SMAC](https://github.com/oxwhirl/smac), the decentralised micromanagement scenario of [StarCraft II](https://en.wikipedia.org/wiki/StarCraft_II:_Wings_of_Liberty).
+Official code for extracting interpretable policies from trained multi-agent reinforcement learning (MARL) models, built on the [SMAC](https://github.com/oxwhirl/smac) benchmark.
 
-## Corresponding Papers
-- [IQL: Independent Q-Learning](https://arxiv.org/abs/1511.08779)
-- [QMIX: Monotonic Value Function Factorisation for Deep Multi-Agent Reinforcement Learning](https://arxiv.org/abs/1803.11485)
-- [Value-Decomposition Networks For Cooperative Multi-Agent Learning](https://arxiv.org/abs/1706.05296)
-- [Counterfactual Multi-Agent Policy Gradients](https://arxiv.org/abs/1705.08926)
-- [QTRAN: Learning to Factorize with Transformation for Cooperative Multi-Agent Reinforcement Learning](https://arxiv.org/abs/1905.05408)
-- [Learning Multiagent Communication with Backpropagation](https://arxiv.org/abs/1605.07736)
-- [From Few to More: Large-scale Dynamic Multiagent Curriculum Learning](https://arxiv.org/abs/1909.02790?context=cs.MA)
-- [Multi-Agent Game Abstraction via Graph Attention Neural Network](https://arxiv.org/abs/1911.10715)
-- [MAVEN: Multi-Agent Variational Exploration](https://arxiv.org/abs/1910.07483)
+## Abstract
 
-## Requirements
+FIPE investigates how to distill policy knowledge from complex MARL models (QMIX, VDN, COMA, etc.) into interpretable ML models such as decision trees, KNN, SVM, GBDT, and Gaussian processes — balancing **fidelity** (how closely the extracted policy matches the original) against **task performance** (win rate).
 
-- python
-- torch
-- [SMAC](https://github.com/oxwhirl/smac)
-- [pysc2](https://github.com/deepmind/pysc2)
+Key components:
+1. Train state-of-the-art MARL algorithms on StarCraft II micromanagement scenarios
+2. Collect interaction experiences from the teacher model
+3. Train interpretable surrogate policies via behavioral cloning
+4. Optimize the fidelity–performance trade-off through model selection and ensembling
+5. Support iterative distillation with DAgger-style data aggregation
 
-## Acknowledgement
+## Environment
 
-+ [SMAC](https://github.com/oxwhirl/smac)
-+ [pymarl](https://github.com/oxwhirl/pymarl)
+- **SMAC** (StarCraft Multi-Agent Challenge) — decentralized micromanagement scenarios in StarCraft II
+- Supported maps: `3m`, `8m`, `2s3z`, `2s_vs_1sc`, `5m_vs_6m`, and more (see `smac/env/starcraft2/maps/smac_maps.py`)
 
+## Algorithms
 
-## TODO List
+### Teacher MARL Policies
+- [IQL](https://arxiv.org/abs/1511.08779)
+- [VDN](https://arxiv.org/abs/1706.05296)
+- [QMIX](https://arxiv.org/abs/1803.11485)
+- [COMA](https://arxiv.org/abs/1705.08926)
+- [QTRAN](https://arxiv.org/abs/1905.05408) (base / alt)
+- [MAVEN](https://arxiv.org/abs/1910.07483)
+- [CommNet](https://arxiv.org/abs/1605.07736)
+- [G2ANet](https://arxiv.org/abs/1911.10715)
+- Central-V / REINFORCE (external training algorithms for CommNet/G2ANet)
 
-- [x] Add CUDA option
-- [x] DyMA-CL
-- [x] G2ANet
-- [x] MAVEN
-- [ ] VBC
-- [ ] Other SOTA MARL algorithms
-- [ ] Update results on other maps
+### Interpretable Surrogate Models
+| Model | File | Description |
+|-------|------|-------------|
+| DT (Gini) | `_YSZ_/agent/DT_Gini.py` | Decision tree with Gini impurity, max_depth ∈ {3,5,10,12,24} |
+| DT (Entropy) | `_YSZ_/agent/DT_Entropy.py` | Decision tree with information gain |
+| GBDT | `_YSZ_/agent/DT_GBDT.py` | Gradient boosting decision tree |
+| KNN (Ball) | `_YSZ_/agent/KNN_Ball.py` | K-nearest neighbors (Ball Tree), n ∈ {1,10,100} |
+| KNN (Brute) | `_YSZ_/agent/KNN_Brute.py` | K-nearest neighbors (Brute Force), n ∈ {1,10,100} |
+| SVM (SVC) | `_YSZ_/agent/SVM_SVC.py` | Support vector classifier with probability estimates |
+| SVM (Linear) | `_YSZ_/agent/SVM_LinearSVC.py` | Linear support vector classifier with probability estimates |
+| GP | `_YSZ_/agent/GP.py` | Gaussian process classifier |
+
+## Repository Structure
+
+```
+├── our_FIPE.py               # Main entry: Fidelity-Induced Policy Extraction
+├── VIPER_DAGGER.py           # VIPER + DAgger iterative distillation
+├── 2s_vs_1sc_DAG_VIP.py      # DAG + VIP variant (targeting specific maps)
+├── Store_EXPs.py             # Experience collection and storage
+├── runner.py                 # Unified training and evaluation runner
+│
+├── agent/                    # MARL agent definitions
+├── common/                   # Shared components
+│   ├── arguments.py          # Hyperparameters for all algorithms
+│   ├── replay_buffer.py      # Experience replay buffer
+│   ├── rollout.py            # Rollout worker
+│   └── utils.py              # Utility functions (td-lambda targets, etc.)
+│
+├── network/                  # Neural network architectures
+│   ├── qmix_net.py / vdn_net.py / qtran_net.py
+│   ├── coma_critic.py / maven_net.py
+│   └── commnet.py / g2anet.py
+│
+├── policy/                   # Policy implementations
+│   ├── iql.py / qmix.py / vdn.py / coma.py
+│   ├── qtran_base.py / qtran_alt.py / maven.py
+│   └── central_v.py / reinforce.py
+│
+├── smac/                     # SMAC environment (including StarCraft II maps)
+│
+└── _YSZ_/                    # Custom utility library
+    ├── agent/                # Interpretable model implementations
+    ├── env/                  # Additional test environments (CartPole, FlappyBird, etc.)
+    ├── interact/             # Interaction experience management
+    ├── test/                 # Evaluation tools (action similarity, model comparison)
+    ├── trainsform/           # Data transformation and dimensionality reduction (t-SNE)
+    ├── visualization/        # Experiment visualization
+    ├── xai/                  # XAI policy imitation methods
+    └── _base_/               # Version metadata
+```
 
 ## Quick Start
 
-```shell
-$ python main.py --map=3m --alg=qmix
+### 1. Requirements
+
+```bash
+pip install torch numpy matplotlib scikit-learn seaborn pandas
+pip install smac
+pip install pysc2
 ```
 
-Directly run the `main.py`, then the algorithm will start **training** on map `3m`. **Note** CommNet and G2ANet need an external training algorithm, so the name of them are like `reinforce+commnet` or `central_v+g2anet`, all the algorithms we provide are written in `./common/arguments.py`.
+You also need StarCraft II installed with SMAC map packs. See the [SMAC installation guide](https://github.com/oxwhirl/smac) for details.
 
-If you just want to use this project for demonstration, you should set `--evaluate=True --load_model=True`. 
+### 2. Experience Collection
 
-The running of DyMA-CL is independent from others because it requires different environment settings, so we put it on another project. For more details, please read [DyMA-CL documentation](https://github.com/starry-sky6688/DyMA-CL).
+Collect interaction experiences from the teacher model:
 
-## Result
+```bash
+python Store_EXPs.py --map=3m --alg=qmix
+```
 
-We independently train these algorithms for 8 times and take the mean of the 8 independent results, and we evaluate them for 20 episodes every 100 training steps. All of the results are saved in  `./result`.
-Results on other maps are still in training, we will update them later.
+Key arguments (all defined in `common/arguments.py`):
+- `--map`: SMAC map name
+- `--alg`: Teacher MARL algorithm
+- `--n_steps`: Total time steps (default: 2,000,000)
+- `--load_model`: Load a pretrained model
+- `--evaluate`: Evaluation-only mode
 
-### 1. Mean Win Rate of 8 Independent Runs on `3m --difficulty=7(VeryHard)`
-<div align=center><img width = '600' height ='300' src ="https://github.com/starry-sky6688/StarCraft/blob/master/result/overview_3m.png"/></div>
+### 3. FIPE: Policy Extraction
 
-### 2. Mean Win Rate of 8 Independent Runs on `8m --difficulty=7(VeryHard)`
-<div align=center><img width = '600' height ='300' src ="https://github.com/starry-sky6688/StarCraft/blob/master/result/overview_8m.png"/></div>
+Extract interpretable policies from a trained teacher:
 
-### 3. Mean Win Rate of 8 Independent Runs on `2s3z --difficulty=7(VeryHard)`
-<div align=center><img width = '600' height ='300' src ="https://github.com/starry-sky6688/StarCraft/blob/master/result/overview_2s3z.png"/></div>
+```bash
+python our_FIPE.py --map=3m --alg=qmix --evaluate=True --load_model=True
+```
 
-## Replay
+### 4. VIPER + DAgger Iterative Distillation
 
-If you want to see the replay, make sure the `replay_dir` is an absolute path, which can be set in `./common/arguments.py`. Then the replays of each evaluation will be saved, you can find them in your path.
-"# Fidelity-Induced-Policy-Extraction" 
+Iteratively expand the experience pool and refine the interpretable model:
+
+```bash
+python VIPER_DAGGER.py --map=2s_vs_1sc --alg=qmix --evaluate=True --load_model=True
+```
+
+### 5. DAG + VIP Variant
+
+```bash
+python 2s_vs_1sc_DAG_VIP.py --map=2s_vs_1sc --alg=qmix --evaluate=True --load_model=True
+```
+
+## Evaluation Metrics
+
+- **Win Rate**: Task completion rate
+- **Reward**: Cumulative episode reward
+- **Fidelity**: Action agreement between student and teacher policies
+- **Model Selection**: In iterative settings, the top-K models are retained by `win_rate + fidelity` score
+
+## Citation
+
+If you use this code in your research, please cite our paper:
+
+```bibtex
+@article{...,
+  title={...},
+  author={...},
+  year={...}
+}
+```
+
+### MARL Foundations
+- [QMIX: Monotonic Value Function Factorisation for Deep Multi-Agent Reinforcement Learning](https://arxiv.org/abs/1803.11485)
+- [VDN: Value-Decomposition Networks For Cooperative Multi-Agent Learning](https://arxiv.org/abs/1706.05296)
+- [COMA: Counterfactual Multi-Agent Policy Gradients](https://arxiv.org/abs/1705.08926)
+- [QTRAN: Learning to Factorize with Transformation for Cooperative Multi-Agent Reinforcement Learning](https://arxiv.org/abs/1905.05408)
+- [MAVEN: Multi-Agent Variational Exploration](https://arxiv.org/abs/1910.07483)
+
+### Interpretable / Verifiable Policy Extraction
+- [VIPER: Verifiable Innovative Policy Extraction via Reinforcement](https://arxiv.org/abs/1902.10146)
+- [DAgger: Dataset Aggregation](https://www.cs.cmu.edu/~sross1/publications/Ross-AISTATS11.pdf)
+
+### Infrastructure
+- [SMAC: StarCraft Multi-Agent Challenge](https://github.com/oxwhirl/smac)
+- [PyMARL](https://github.com/oxwhirl/pymarl)
+
+## License
+
+This project is built upon the open-source StarCraft MARL benchmark codebase. It is intended for research purposes only.
